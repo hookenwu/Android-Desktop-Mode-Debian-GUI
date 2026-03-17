@@ -64,6 +64,16 @@ messages=(
     ["enter_lang_num_en"]="Enter number / 输入数字 (1/2): "
     ["set_password_prompt_cn"]="是否为用户 '$TARGET_USER' 设置或更改登录密码？(y/n): "
     ["set_password_prompt_en"]="Set or change the login password for user '$TARGET_USER'? (y/n): "
+
+    ["desktop_mode_select_cn"]="请选择桌面安装方式"
+    ["desktop_mode_select_en"]="Please select the desktop installation mode"
+    ["desktop_mode_predefined_cn"]="1. 预定义桌面（保持当前 tasksel 安装逻辑）"
+    ["desktop_mode_predefined_en"]="1. Predefined desktop (keep current tasksel logic)"
+    ["desktop_mode_minimal_cn"]="2. 精简版桌面（仅安装 XFCE 核心：xfce4 xfce4-goodies）"
+    ["desktop_mode_minimal_en"]="2. Minimal desktop (install XFCE core only: xfce4 xfce4-goodies)"
+    ["enter_desktop_mode_num_cn"]="请输入桌面安装方式编号 (1/2): "
+    ["enter_desktop_mode_num_en"]="Please enter the desktop installation mode number (1/2): "
+
     ["desktop_select_cn"]="选择您想安装的桌面环境"
     ["desktop_select_en"]="Select the desktop environment you want to install"
     ["enter_desktop_num_cn"]="请输入您想安装的桌面环境编号: "
@@ -154,23 +164,47 @@ function user_selections() {
     read -p "$(lang set_password_prompt)" set_pwd
     if [[ "$set_pwd" =~ ^[Yy]$ ]]; then sudo passwd $TARGET_USER; fi
 
-    banner "$(lang desktop_select)"
-    echo "1. KDE Plasma"; echo "2. GNOME"; echo "3. XFCE"; echo "4. MATE"; echo "5. Cinnamon"; echo "6. LXQt"; echo "7. LXDE"; echo "8. GNOME Flashback (经典模式)"
-
+    banner "$(lang desktop_mode_select)"
+    echo "$(lang desktop_mode_predefined)"
+    echo "$(lang desktop_mode_minimal)"
     while true; do
-        read -p "$(lang enter_desktop_num)" desktop_choice
-        case $desktop_choice in
-            1) DESKTOP_NAME="KDE Plasma"; TASKSEL_TASK="kde-desktop"; VNC_SESSION="plasma"; break ;;
-            2) DESKTOP_NAME="GNOME"; TASKSEL_TASK="gnome-desktop"; VNC_SESSION="gnome"; break ;;
-            3) DESKTOP_NAME="XFCE"; TASKSEL_TASK="xfce-desktop"; VNC_SESSION="xfce"; break ;;
-            4) DESKTOP_NAME="MATE"; TASKSEL_TASK="mate-desktop"; VNC_SESSION="mate"; break ;;
-            5) DESKTOP_NAME="Cinnamon"; TASKSEL_TASK="cinnamon-desktop"; VNC_SESSION="cinnamon"; break ;;
-            6) DESKTOP_NAME="LXQt"; TASKSEL_TASK="lxqt-desktop"; VNC_SESSION="lxqt"; break ;;
-            7) DESKTOP_NAME="LXDE"; TASKSEL_TASK="lxde-desktop"; VNC_SESSION="lxde"; break ;;
-            8) DESKTOP_NAME="GNOME Flashback"; TASKSEL_TASK="gnome-flashback-desktop"; VNC_SESSION="gnome-flashback-metacity"; break ;;
-            *) error "$(lang invalid_option)" ;;
+        read -p "$(lang enter_desktop_mode_num)" desktop_mode_choice
+        case $desktop_mode_choice in
+            1)
+                DESKTOP_INSTALL_MODE="predefined"
+                break
+                ;;
+            2)
+                DESKTOP_INSTALL_MODE="minimal"
+                DESKTOP_NAME="XFCE (Minimal)"
+                VNC_SESSION="xfce"
+                break
+                ;;
+            *)
+                error "$(lang invalid_option)"
+                ;;
         esac
     done
+
+    if [[ "$DESKTOP_INSTALL_MODE" == "predefined" ]]; then
+        banner "$(lang desktop_select)"
+        echo "1. KDE Plasma"; echo "2. GNOME"; echo "3. XFCE"; echo "4. MATE"; echo "5. Cinnamon"; echo "6. LXQt"; echo "7. LXDE"; echo "8. GNOME Flashback (经典模式)"
+
+        while true; do
+            read -p "$(lang enter_desktop_num)" desktop_choice
+            case $desktop_choice in
+                1) DESKTOP_NAME="KDE Plasma"; TASKSEL_TASK="kde-desktop"; VNC_SESSION="plasma"; break ;;
+                2) DESKTOP_NAME="GNOME"; TASKSEL_TASK="gnome-desktop"; VNC_SESSION="gnome"; break ;;
+                3) DESKTOP_NAME="XFCE"; TASKSEL_TASK="xfce-desktop"; VNC_SESSION="xfce"; break ;;
+                4) DESKTOP_NAME="MATE"; TASKSEL_TASK="mate-desktop"; VNC_SESSION="mate"; break ;;
+                5) DESKTOP_NAME="Cinnamon"; TASKSEL_TASK="cinnamon-desktop"; VNC_SESSION="cinnamon"; break ;;
+                6) DESKTOP_NAME="LXQt"; TASKSEL_TASK="lxqt-desktop"; VNC_SESSION="lxqt"; break ;;
+                7) DESKTOP_NAME="LXDE"; TASKSEL_TASK="lxde-desktop"; VNC_SESSION="lxde"; break ;;
+                8) DESKTOP_NAME="GNOME Flashback"; TASKSEL_TASK="gnome-flashback-desktop"; VNC_SESSION="gnome-flashback-metacity"; break ;;
+                *) error "$(lang invalid_option)" ;;
+            esac
+        done
+    fi
 
     clear
     banner "$(lang confirm_banner)"
@@ -211,8 +245,13 @@ function setup_ssh() {
 # 步骤4: 安装桌面环境
 function install_desktop() {
     banner "$(printf "$(lang desktop_install)" "$DESKTOP_NAME")"
-    install_package "tasksel"
-    run_cmd sudo tasksel install $TASKSEL_TASK
+
+    if [[ "$DESKTOP_INSTALL_MODE" == "minimal" ]]; then
+        run_cmd sudo apt install -y xfce4 xfce4-goodies
+    else
+        install_package "tasksel"
+        run_cmd sudo tasksel install $TASKSEL_TASK
+    fi
 }
 
 # 步骤5: 安装和配置 VNC
