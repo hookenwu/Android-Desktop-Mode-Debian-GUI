@@ -15,8 +15,6 @@ DESKTOP_FILE="$DESKTOP_DIR/cursor.desktop"
 ICON_NAME="cursor"
 ICON_PATH="$ICON_DIR/$ICON_NAME.png"
 
-JSON_URL="https://raw.githubusercontent.com/oslook/cursor-ai-downloads/main/version-history.json"
-
 log() {
   printf "\n==> %s\n" "$1"
 }
@@ -32,11 +30,33 @@ append_if_missing() {
   fi
 }
 
+detect_cursor_platform() {
+  local arch
+  arch="$(uname -m)"
+
+  case "$arch" in
+    x86_64|amd64)
+      echo "linux-x64"
+      ;;
+    aarch64|arm64)
+      echo "linux-arm64"
+      ;;
+    *)
+      echo "不支持的系统架构: $arch" >&2
+      exit 1
+      ;;
+  esac
+}
+
 get_latest_cursor_meta() {
-  python3 - <<'PY'
+  local platform="$1"
+
+  python3 - "$platform" <<'PY'
 import json, urllib.request, sys
 
+platform = sys.argv[1]
 url = "https://raw.githubusercontent.com/oslook/cursor-ai-downloads/main/version-history.json"
+
 with urllib.request.urlopen(url) as r:
     data = json.load(r)
 
@@ -62,15 +82,15 @@ for item in versions:
         continue
     ver = item.get("version")
     platforms = item.get("platforms", {})
-    arm_url = platforms.get("linux-arm64")
-    if ver and arm_url:
+    target_url = platforms.get(platform)
+    if ver and target_url:
         vt = parse_ver(ver)
         if best is None or vt > best_tuple:
-            best = {"version": ver, "url": arm_url}
+            best = {"version": ver, "url": target_url}
             best_tuple = vt
 
 if not best:
-    print("ERROR: 未找到 linux-arm64 的可用版本", file=sys.stderr)
+    print(f"ERROR: 未找到 {platform} 的可用版本", file=sys.stderr)
     sys.exit(1)
 
 print(best["version"])
@@ -81,8 +101,12 @@ PY
 log "创建目录"
 mkdir -p "$INSTALL_DIR" "$LOCAL_BIN" "$DESKTOP_DIR" "$ICON_DIR"
 
-log "获取最新 Cursor linux-arm64 下载链接"
-mapfile -t CURSOR_META < <(get_latest_cursor_meta)
+log "识别系统架构"
+CURSOR_PLATFORM="$(detect_cursor_platform)"
+echo "Detected platform: $CURSOR_PLATFORM"
+
+log "获取最新 Cursor 下载链接"
+mapfile -t CURSOR_META < <(get_latest_cursor_meta "$CURSOR_PLATFORM")
 CURSOR_VERSION="${CURSOR_META[0]}"
 CURSOR_URL="${CURSOR_META[1]}"
 
